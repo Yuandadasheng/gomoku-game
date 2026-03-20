@@ -1,0 +1,14 @@
+{
+  "name": "gomoku-game",
+  "version": "1.0.0",
+  "description": "五子棋小游戏",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'No build step required - pure JS/CSS/HTML'"
+  },
+  "keywords": ["gomoku", "five-in-a-row", "game"],
+  "author": "",
+  "license": "MIT"
+}
