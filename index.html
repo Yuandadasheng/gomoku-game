@@ -9,11 +9,30 @@
 <body>
     <div class="container">
         <h1>五子棋</h1>
+
+        <!-- 计分板 -->
+        <div class="score-board">
+            <div class="score-item">
+                <span class="score-label black-label">黑棋</span>
+                <span class="score-value" id="scoreBlack">0</span>
+            </div>
+            <div class="score-item">
+                <span class="score-label white-label">白棋</span>
+                <span class="score-value" id="scoreWhite">0</span>
+            </div>
+        </div>
+
+        <!-- 游戏控制区 -->
         <div class="game-info">
             <div class="status">当前玩家: <span id="currentPlayer">黑棋</span></div>
-            <button id="restartBtn" class="btn">重新开始</button>
+            <div class="btn-group">
+                <button id="undoBtn" class="btn btn-secondary">悔棋</button>
+                <button id="restartBtn" class="btn">重新开始</button>
+            </div>
         </div>
+
         <canvas id="gameBoard" width="600" height="600"></canvas>
+
         <div class="instructions">
             <h3>游戏规则</h3>
             <ul>
@@ -23,6 +42,18 @@
             </ul>
         </div>
     </div>
+
+    <!-- 游戏结束模态框 -->
+    <div id="gameModal" class="modal">
+        <div class="modal-content">
+            <div id="modalMessage" class="modal-message"></div>
+            <div class="modal-buttons">
+                <button id="modalCloseBtn" class="btn btn-secondary">关闭</button>
+                <button id="modalRestartBtn" class="btn">再来一局</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="app.js"></script>
 </body>
 </html>

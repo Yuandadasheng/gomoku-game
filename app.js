@@ -20,6 +20,9 @@ const restartBtn = document.getElementById('restartBtn');
 let board = [];                // 棋盘数组
 let currentPlayer = Players.BLACK;  // 当前玩家
 let gameOver = false;          // 游戏结束标志
+let lastMove = null;           // 最后落子位置 {row, col}
+let moveHistory = [];          // 落子历史记录
+let scores = { black: 0, white: 0 };  // 计分
 
 /**
  * 初始化游戏
@@ -31,9 +34,12 @@ function initGame() {
     // 重置游戏状态
     currentPlayer = Players.BLACK;
     gameOver = false;
+    lastMove = null;
+    moveHistory = [];
 
     // 更新玩家显示
     updatePlayerDisplay();
+    updateScoreDisplay();
 
     // 绘制棋盘
     drawBoard();
@@ -94,6 +100,11 @@ function drawBoard() {
                 drawPiece(row, col, board[row][col]);
             }
         }
+    }
+
+    // 绘制最后落子高亮标记
+    if (lastMove) {
+        drawLastMoveMarker(lastMove.row, lastMove.col);
     }
 }
 
@@ -162,7 +173,7 @@ function handleBoardClick(event) {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    // 计算缩放比例
+    // 计算缩放比例 - 修复移动端坐标计算
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
@@ -182,24 +193,31 @@ function handleBoardClick(event) {
 
     // 落子
     board[row][col] = currentPlayer;
+    lastMove = { row, col };
+    moveHistory.push({ row, col, player: currentPlayer });
+    playSound('place');
     drawBoard();
 
     // 检查是否获胜
     if (checkWin(row, col)) {
         gameOver = true;
         const winner = currentPlayer === Players.BLACK ? '黑棋' : '白棋';
-        setTimeout(() => {
-            alert(`游戏结束！${winner}获胜！`);
-        }, 100);
+        if (currentPlayer === Players.BLACK) {
+            scores.black++;
+        } else {
+            scores.white++;
+        }
+        updateScoreDisplay();
+        playSound('win');
+        showGameModal(`🎉 游戏结束！<br><br><span style="font-size: 1.5em; color: ${currentPlayer === Players.BLACK ? '#333' : '#666'};">${winner}获胜！</span>`);
         return;
     }
 
     // 检查是否平局
     if (checkDraw()) {
         gameOver = true;
-        setTimeout(() => {
-            alert('游戏结束！平局！');
-        }, 100);
+        playSound('lose');
+        showGameModal('🤝 游戏结束！<br><br><span style="font-size: 1.5em;">平局！</span>');
         return;
     }
 
@@ -272,15 +290,146 @@ function checkDraw() {
 }
 
 /**
+ * 绘制最后落子高亮标记
+ * @param {number} row - 行索引
+ * @param {number} col - 列索引
+ */
+function drawLastMoveMarker(row, col) {
+    const x = BOARD_PADDING + col * CELL_SIZE;
+    const y = BOARD_PADDING + row * CELL_SIZE;
+
+    // 绘制红色小方块标记
+    ctx.fillStyle = '#ff4444';
+    ctx.fillRect(x - 3, y - 3, 6, 6);
+}
+
+/**
+ * 播放音效
+ * @param {string} type - 音效类型 ('place', 'win', 'lose')
+ */
+function playSound(type) {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    if (type === 'place') {
+        // 落子音效：短促的点击声
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.1);
+    } else if (type === 'win') {
+        // 胜利音效：欢快的三和弦
+        const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+        notes.forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.1);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime + i * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.1 + 0.3);
+            osc.start(audioCtx.currentTime + i * 0.1);
+            osc.stop(audioCtx.currentTime + i * 0.1 + 0.3);
+        });
+    } else if (type === 'lose') {
+        // 失败音效：低沉的声音
+        oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.5);
+    }
+}
+
+/**
+ * 更新计分显示
+ */
+function updateScoreDisplay() {
+    const scoreBlack = document.getElementById('scoreBlack');
+    const scoreWhite = document.getElementById('scoreWhite');
+    if (scoreBlack) scoreBlack.textContent = scores.black;
+    if (scoreWhite) scoreWhite.textContent = scores.white;
+}
+
+/**
+ * 悔棋功能
+ */
+function undoMove() {
+    if (gameOver || moveHistory.length === 0) return;
+
+    const lastMoveData = moveHistory.pop();
+    board[lastMoveData.row][lastMoveData.col] = Players.EMPTY;
+
+    // 恢复上一个落子位置
+    if (moveHistory.length > 0) {
+        lastMove = moveHistory[moveHistory.length - 1];
+    } else {
+        lastMove = null;
+    }
+
+    // 切换回上一个玩家
+    currentPlayer = lastMoveData.player;
+    updatePlayerDisplay();
+
+    drawBoard();
+}
+
+/**
  * 重新开始游戏
  */
 function restartGame() {
     initGame();
 }
 
+/**
+ * 显示游戏结束模态框
+ * @param {string} message - 显示的消息
+ */
+function showGameModal(message) {
+    const modal = document.getElementById('gameModal');
+    const modalMessage = document.getElementById('modalMessage');
+    modalMessage.innerHTML = message;
+    modal.style.display = 'flex';
+}
+
+/**
+ * 关闭游戏结束模态框
+ */
+function closeGameModal() {
+    const modal = document.getElementById('gameModal');
+    modal.style.display = 'none';
+}
+
 // 事件监听
 canvas.addEventListener('click', handleBoardClick);
 restartBtn.addEventListener('click', restartGame);
+
+// 悔棋按钮监听
+const undoBtn = document.getElementById('undoBtn');
+if (undoBtn) {
+    undoBtn.addEventListener('click', undoMove);
+}
+
+// 模态框按钮监听
+const modalCloseBtn = document.getElementById('modalCloseBtn');
+const modalRestartBtn = document.getElementById('modalRestartBtn');
+if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', closeGameModal);
+}
+if (modalRestartBtn) {
+    modalRestartBtn.addEventListener('click', () => {
+        closeGameModal();
+        restartGame();
+    });
+}
 
 // 初始化游戏
 initGame();
