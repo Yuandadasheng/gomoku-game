@@ -39,3 +39,6 @@ coverage/
 
 # 其他
 .history/
+
+# Claude Code
+.claude/
